@@ -74,8 +74,24 @@ class QwenChatEngine:
             raise ValueError("k 必须是非负整数")
         self.first_trim_k = k
 
+    def remove_think_prefix(text):
+        prefix = "<think>"
+        # 检查变量是否为None，避免在None上调用字符串方法
+        if text is None:
+            return None
+        
+        # 检查字符串是否不为空且以指定前缀开头
+        # 空字符串 '' 不会以 '<think>' 开头，所以 'text' 为空时不会进入此分支
+        if text.startswith(prefix):
+            # 使用切片删除前缀
+            return text[len(prefix):]
+        else:
+            # 如果不以 '<think>' 开头，或者字符串为空，则原样返回
+            return text
+
+
     def _clean_text(text: str) -> str:
-        return _SURROGATE_RE.sub('�', text)   # 替换为 �，或直接 '' 删除
+        return _SURROGATE_RE.sub(' ', text)   # 替换为  ，或直接 '' 删除
 
     # --------------------------------------------------------------------- #
     # 核心載入
@@ -351,7 +367,7 @@ class QwenChatEngine:
             try:
                 think_end_index = token_ids.index(self._think_end_token_id)
                 thinking_ids = token_ids[:think_end_index]
-                answer_ids = token_ids[think_end_index:]  # 包含 </think> 本身，後面即答案
+                answer_ids = token_ids[think_end_index + 1:] # 排除 </think> 本身
 
                 thinking_text = self.tokenizer.decode(
                     thinking_ids, skip_special_tokens=True
@@ -364,6 +380,7 @@ class QwenChatEngine:
                 thinking_text = None
                 answer_text = full_text
 
+        thinking_text = self.remove_think_prefix(thinking_text)
 
         # 10️⃣ 把最終答案寫回歷史（思考不寫入）
         self.conversation.append({"role": "assistant", "content": answer_text})
